@@ -1,0 +1,53 @@
+services:
+  # Firewall Target Machine
+  firewall-target:
+    privileged: true
+    build:
+      context: ./Target
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    networks:
+      firewall_net:
+        ipv4_address: 172.20.0.10
+    volumes:
+      - ./Target:/app
+      # - nginx_logs:/var/log/nginx
+    restart: unless-stopped
+    command: tail -f /dev/null
+  
+  # Attacker Machine
+  attacker:
+    build: 
+      context: ./Attacker
+      dockerfile: Dockerfile
+    privileged: true
+    networks:
+      firewall_net:
+        ipv4_address: 172.20.0.11
+    volumes:
+      - ./Attacker:/app
+    restart: unless-stopped
+    command: tail -f /dev/null
+
+  # User Machine
+  user:
+    build: 
+      context: ./User
+      dockerfile: Dockerfile
+    privileged: true
+    networks:
+      firewall_net:
+        ipv4_address: 172.20.0.12
+    volumes:
+      - ./User:/app
+    restart: unless-stopped
+    command: tail -f /dev/null
+
+networks:
+  firewall_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+

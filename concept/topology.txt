@@ -1,0 +1,22 @@
+┌──────────────────────────────────────────────────────────────────────┐
+│                        DOCKER NETWORK (firewall_net)                 │
+│                                                                      │
+│  ┌──────────────┐    HTTP Flood     ┌──────────────────────────┐    │
+│  │   ATTACKER   │ ──────────────────▶│         TARGET          │    │
+│  │  (Container) │    ~100 req/sec   │      (Container)         │    │
+│  │              │                    │  ┌────────┐ ┌─────────┐  │    │
+│  │  - ab/curl   │                    │  │ Nginx  │ │RL Agent │  │    │
+│  │  - hping3    │                    │  │ :80    │ │iptables │  │    │
+│  └──────────────┘                    │  └────────┘ └─────────┘  │    │
+│                                      │                          │    │
+│  ┌──────────────┐    Normal Traffic  │   Agent memutuskan:     │    │
+│  │     USER     │ ──────────────────▶│   - Allow All (A0)      │    │
+│  │  (Container) │    ~5-10 req/sec   │   - Rate Limit (A1/A2)  │    │
+│  │              │                    │   - Block IP (A3)       │    │
+│  │  - ab/curl   │                    │                          │    │
+│  │  - browser   │                    │   Reward berdasarkan:   │    │
+│  └──────────────┘                    │   - Throughput legal ✓  │    │
+│                                      │   - CPU usage ✗         │    │
+│                                      │   - Action cost ✗       │    │
+│                                      └──────────────────────────┘    │
+└──────────────────────────────────────────────────────────────────────┘
