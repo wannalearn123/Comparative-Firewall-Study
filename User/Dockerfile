@@ -1,11 +1,12 @@
-FROM fedora:latest
+FROM fedora:43
 
 RUN dnf -y update && \
     dnf -y install httpd-tools \
     curl \
     python3 python3-pip \
     net-tools \
-    iputils
+    iputils \
+    file
     
 RUN dnf clean all 
 

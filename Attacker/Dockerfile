@@ -1,4 +1,4 @@
-FROM fedora:latest
+FROM fedora:43
 
 RUN dnf -y update && \
     dnf -y install httpd-tools \
@@ -6,7 +6,8 @@ RUN dnf -y update && \
     python3 python3-pip \
     net-tools \
     iputils \
-    hping3 
+    hping3 \
+    file
     
 RUN dnf clean all 
 

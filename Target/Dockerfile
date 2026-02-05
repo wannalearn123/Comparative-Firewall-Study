@@ -1,4 +1,4 @@
-FROM fedora:latest
+FROM fedora:43
 
 RUN dnf -y update && \
     dnf -y install iptables \
@@ -7,7 +7,8 @@ RUN dnf -y update && \
     curl \
     net-tools \
     iputils \
-    procps 
+    procps \
+    file
 
 RUN dnf clean all 
     
