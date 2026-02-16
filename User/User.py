@@ -36,7 +36,7 @@ class LegitimateUser:
         print(f"[USER] Log file: {self.log_file}")
     
     def log_request(self, status, response_time, timestamp):
-        """Log hasil request."""
+        # Log hasil request.
         self.results.append({
             'timestamp': timestamp,
             'request_type': 'legitimate',
@@ -46,7 +46,7 @@ class LegitimateUser:
         })
     
     def save_logs(self):
-        """Simpan log ke CSV."""
+        # Simpan log ke CSV.
         os.makedirs(os.path.dirname(self.log_file) if os.path.dirname(self.log_file) else '.', exist_ok=True)
         with open(self.log_file, 'w', newline='') as f:
             if self.results:
@@ -56,7 +56,7 @@ class LegitimateUser:
         print(f"[USER] Log saved: {self.log_file} ({len(self.results)} entries)")
     
     def send_request(self):
-        """Kirim single HTTP request seperti user normal."""
+        # Kirim single HTTP request seperti user normal.
         timestamp = datetime.now().isoformat()
         start_time = time.time()
         
@@ -204,7 +204,7 @@ class LegitimateUser:
         print(f"{'#'*60}")
     
     def print_summary(self):
-        """Print ringkasan statistik."""
+        # Print ringkasan statistik.
         success_rate = (self.success_requests / self.total_requests * 100) if self.total_requests > 0 else 0
         blocked_rate = (self.blocked_requests / self.total_requests * 100) if self.total_requests > 0 else 0
         

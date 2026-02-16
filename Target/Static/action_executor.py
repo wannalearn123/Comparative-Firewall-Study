@@ -10,7 +10,7 @@ class ActionExecutor:
         self.rules_applied = False
 
     def apply_static_rules(self):
-        """Apply aturan firewall statis dengan rate limit tetap."""
+        # Apply aturan firewall statis dengan rate limit tetap.
         try:
             # Flush rules
             subprocess.run(['iptables', '-F'], check=True)
@@ -46,7 +46,7 @@ class ActionExecutor:
             print(f"[ACTION] Error applying rules: {e}")
 
     def cleanup(self):
-        """Reset iptables ke default."""
+        # Reset iptables ke default.
         try:
             subprocess.run(['iptables', '-F'], check=True)
             subprocess.run(['iptables', '-X'], check=True)

@@ -18,7 +18,7 @@ class StaticFirewall:
         self.log_data = []
     
     def run(self):
-        """Jalankan static firewall."""
+        # Jalankan static firewall.
         print(f"\n[STATIC FIREWALL] Starting...")
         print(f"[STATIC FIREWALL] Rate Limit: {self.executor.rate_limit}/sec (FIXED)")
         print(f"[STATIC FIREWALL] Duration: {self.duration}s\n")
@@ -48,7 +48,7 @@ class StaticFirewall:
         self.shutdown()
     
     def shutdown(self):
-        """Cleanup dan generate plot."""
+        # Cleanup dan generate plot.
         # Save log
         with open('static_log.csv', 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=['time', 'state', 'throughput'])

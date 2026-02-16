@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Attack Simulator: Mensimulasikan berbagai jenis serangan ke target.
-Dijalankan di container Attacker (172.20.0.11)
-"""
-
 import subprocess
 import time
 import random

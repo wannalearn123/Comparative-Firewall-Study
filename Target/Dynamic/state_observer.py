@@ -15,7 +15,7 @@ class StateObserver:
         self.last_time = time.time()
 
     def get_cpu_ram_state(self):
-        """Mengukur CPU dan RAM, kategorikan ke [Safe, Warning, Critical]."""
+        # Mengukur CPU dan RAM, kategorikan ke [Safe, Warning, Critical].
         cpu_percent = psutil.cpu_percent(interval=1)  # Interval 1 detik untuk akurasi
         ram_percent = psutil.virtual_memory().percent
         # Threshold: CPU/RAM <50% Safe, 50-80% Warning, >80% Critical
@@ -25,7 +25,7 @@ class StateObserver:
         return cpu_state  # 0: Safe, 1: Warning, 2: Critical
 
     def get_packet_rate(self):
-        """Mengukur laju paket masuk per detik via iptables -L -v."""
+        # Mengukur laju paket masuk per detik via iptables -L -v.
         try:
             result = subprocess.run(['iptables', '-L', '-v'], capture_output=True, text=True, timeout=5)
             # Parse output untuk packets pada interface (asumsi chain INPUT)
@@ -47,7 +47,7 @@ class StateObserver:
             return 0  # Fallback ke Low jika gagal
 
     def get_throughput_legal(self):
-        """Parse log HTTP untuk hitung throughput legal (status 200)."""
+        # Parse log HTTP untuk hitung throughput legal (status 200).
         try:
             with open(self.log_file_path, 'r') as f:
                 lines = f.readlines()[-100:]  # Ambil 100 baris terakhir untuk efisiensi
@@ -57,7 +57,7 @@ class StateObserver:
             return 0  # Fallback jika log tidak ada
 
     def get_state(self):
-        """Gabungkan ke state diskrit: traffic_load * 3 + cpu_state (0-8)."""
+        # Gabungkan ke state diskrit: traffic_load * 3 + cpu_state (0-8).
         traffic_load = self.get_packet_rate()
         cpu_state = self.get_cpu_ram_state()
         state = traffic_load * 3 + cpu_state

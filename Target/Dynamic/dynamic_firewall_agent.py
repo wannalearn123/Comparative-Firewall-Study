@@ -48,11 +48,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# Contoh Penggunaan Sederhana:
-# 1. Jalankan di container Docker: docker run -it --privileged ubuntu:22.04 /bin/bash
-# 2. Install dependensi: apt update && apt install python3 python3-pip iptables nginx && pip install psutil numpy matplotlib
-# 3. Jalankan Nginx: service nginx start
-# 4. Jalankan script: python3 dynamic_firewall_agent.py
-# 5. Dari container lain (attacker): ab -n 1000 -c 10 http://target:80/ (untuk simulasi traffic)
-# Output: agent_log.csv dan grafik matplotlib.
