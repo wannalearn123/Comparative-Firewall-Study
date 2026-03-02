@@ -10,6 +10,8 @@ RUN dnf -y update && \
     
 RUN dnf clean all 
 
+RUN pip3 install requests urllib3
+
 USER root
 
 WORKDIR /app

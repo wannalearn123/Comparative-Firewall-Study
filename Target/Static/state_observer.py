@@ -5,60 +5,107 @@ import re
 
 class StateObserver:
     """
-    Kelas untuk mengumpulkan data state real-time: CPU/RAM, packet rate, dan throughput legal dari log HTTP.
-    Mengkategorikan ke state diskrit (0-8) berdasarkan kombinasi traffic load dan CPU.
+    Enhanced state observer with 15-state space and packet drop tracking.
+    States: 3 traffic levels × 5 CPU levels = 15 states
     """
     def __init__(self, log_file_path='/var/log/nginx/access.log', interface='eth0'):
-        self.log_file_path = log_file_path
-        self.interface = interface
-        self.last_packet_count = 0  # Untuk menghitung rate paket
+        self.log_file_path = self._validate_path(log_file_path)
+        self.interface = self._validate_interface(interface)
+        self.last_packet_count = 0
+        self.last_drop_count = 0
         self.last_time = time.time()
+        self.prev_throughput = 0
 
-    def get_cpu_ram_state(self):
-        # Mengukur CPU dan RAM, kategorikan ke [Safe, Warning, Critical].
-        cpu_percent = psutil.cpu_percent(interval=1)  # Interval 1 detik untuk akurasi
-        ram_percent = psutil.virtual_memory().percent
-        # Threshold: CPU/RAM <50% Safe, 50-80% Warning, >80% Critical
-        cpu_state = 0 if cpu_percent < 50 else (1 if cpu_percent < 80 else 2)
-        ram_state = 0 if ram_percent < 50 else (1 if ram_percent < 80 else 2)
-        # Gunakan CPU sebagai proxy utama untuk state (ram_state bisa ditambahkan jika perlu)
-        return cpu_state  # 0: Safe, 1: Warning, 2: Critical
+    def _validate_interface(self, interface):
+        if not re.match(r'^[a-zA-Z0-9]+$', interface):
+            raise ValueError("Invalid interface name")
+        return interface
 
-    def get_packet_rate(self):
-        # Mengukur laju paket masuk per detik via iptables -L -v.
+    def _validate_path(self, path):
+        if not re.match(r'^[a-zA-Z0-9/_.-]+$', path):
+            raise ValueError("Invalid file path")
+        return path
+
+    def get_cpu_state(self):
+        cpu_percent = psutil.cpu_percent(interval=0.5)
+        if cpu_percent < 30:
+            return 0
+        elif cpu_percent < 50:
+            return 1
+        elif cpu_percent < 70:
+            return 2
+        elif cpu_percent < 85:
+            return 3
+        else:
+            return 4
+
+    def get_packet_rate_and_drops(self):
         try:
-            result = subprocess.run(['iptables', '-L', '-v'], capture_output=True, text=True, timeout=5)
-            # Parse output untuk packets pada interface (asumsi chain INPUT)
+            result = subprocess.run(['iptables', '-L', 'INPUT', '-v', '-n', '-x'], 
+                                  capture_output=True, text=True, timeout=2)
             lines = result.stdout.split('\n')
-            packet_count = 0
+            
+            total_packets = 0
+            dropped_packets = 0
+            
             for line in lines:
-                if self.interface in line and 'pkts' in line:
-                    match = re.search(r'(\d+) pkts', line)
-                    if match:
-                        packet_count += int(match.group(1))
+                if 'DROP' in line or 'REJECT' in line:
+                    parts = line.split()
+                    if len(parts) > 0 and parts[0].isdigit():
+                        dropped_packets += int(parts[0])
+                elif 'ACCEPT' in line or 'tcp dpt:80' in line:
+                    parts = line.split()
+                    if len(parts) > 0 and parts[0].isdigit():
+                        total_packets += int(parts[0])
+            
             current_time = time.time()
-            rate = (packet_count - self.last_packet_count) / (current_time - self.last_time) if self.last_time else 0
-            self.last_packet_count = packet_count
+            time_delta = current_time - self.last_time
+            
+            packet_rate = (total_packets - self.last_packet_count) / time_delta if time_delta > 0 else 0
+            drop_rate = (dropped_packets - self.last_drop_count) / time_delta if time_delta > 0 else 0
+            
+            self.last_packet_count = total_packets
+            self.last_drop_count = dropped_packets
             self.last_time = current_time
-            # Kategorikan: <100 Low, 100-500 Medium, >500 High
-            traffic_load = 0 if rate < 100 else (1 if rate < 500 else 2)
-            return traffic_load  # 0: Low, 1: Medium, 2: High
+            
+            if packet_rate < 50:
+                traffic_load = 0
+            elif packet_rate < 200:
+                traffic_load = 1
+            else:
+                traffic_load = 2
+            
+            drop_percent = (drop_rate / (packet_rate + 1)) * 100
+            
+            return traffic_load, drop_percent
         except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
-            return 0  # Fallback ke Low jika gagal
+            return 0, 0
 
     def get_throughput_legal(self):
-        # Parse log HTTP untuk hitung throughput legal (status 200).
         try:
-            with open(self.log_file_path, 'r') as f:
-                lines = f.readlines()[-100:]  # Ambil 100 baris terakhir untuk efisiensi
-            success_count = sum(1 for line in lines if ' 200 ' in line)
-            return success_count  # Throughput sebagai count sederhana
-        except FileNotFoundError:
-            return 0  # Fallback jika log tidak ada
+            result = subprocess.run(['tail', '-n', '200', self.log_file_path], 
+                                  capture_output=True, text=True, timeout=2)
+            lines = result.stdout.split('\n')
+            
+            recent_success = 0
+            
+            for line in lines:
+                if ' 200 ' in line:
+                    recent_success += 1
+            
+            return recent_success
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+            return 0
 
     def get_state(self):
-        # Gabungkan ke state diskrit: traffic_load * 3 + cpu_state (0-8).
-        traffic_load = self.get_packet_rate()
-        cpu_state = self.get_cpu_ram_state()
-        state = traffic_load * 3 + cpu_state
-        return state, self.get_throughput_legal(), cpu_state  # Return tambahan untuk reward
+        traffic_load, drop_percent = self.get_packet_rate_and_drops()
+        cpu_state = self.get_cpu_state()
+        throughput = self.get_throughput_legal()
+        
+        state = traffic_load * 5 + cpu_state
+        
+        result = (state, throughput, psutil.cpu_percent(interval=0), 
+                 drop_percent, self.prev_throughput)
+        self.prev_throughput = throughput
+        
+        return result

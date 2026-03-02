@@ -1,37 +1,85 @@
 import subprocess
 import re
+import time
 
 class ActionExecutor:
     """
-    Kelas untuk eksekusi aksi ke iptables: A0 (allow all), A1 (rate limit moderate), A2 (strict), A3 (block high offender).
+    Enhanced action executor with 5 granular actions and connection limiting.
+    A0: Allow all (100/s)
+    A1: Light limit (50/s)
+    A2: Moderate limit (25/s)
+    A3: Strict limit (10/s)
+    A4: Block top offender + strict limit
     """
     def __init__(self, interface='eth0'):
         self.interface = interface
+        self.blocked_ips = set()
+        self.last_action = -1
 
     def execute_action(self, action):
-        """Eksekusi action berdasarkan ID."""
+        if action == self.last_action:
+            return
+        
         try:
-            if action == 0:  # A0: Allow all
-                subprocess.run(['iptables', '-F'], check=True)  # Flush rules
-                subprocess.run(['iptables', '-P', 'INPUT', 'ACCEPT'], check=True)
-            elif action == 1:  # A1: Rate limit moderate (50/sec)
-                subprocess.run(['iptables', '-F'], check=True)
-                subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80', '-m', 'limit', '--limit', '50/sec', '-j', 'ACCEPT'], check=True)
-                subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80', '-j', 'DROP'], check=True)
-            elif action == 2:  # A2: Rate limit strict (10/sec)
-                subprocess.run(['iptables', '-F'], check=True)
-                subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80', '-m', 'limit', '--limit', '10/sec', '-j', 'ACCEPT'], check=True)
-                subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80', '-j', 'DROP'], check=True)
-            elif action == 3:  # A3: Block high offender (top IP dari iptables -L -v)
-                result = subprocess.run(['iptables', '-L', '-v'], capture_output=True, text=True)
-                # Parse top IP (simplifikasi: asumsikan format standar, block IP pertama dengan trafik tinggi)
-                lines = result.stdout.split('\n')
-                for line in lines:
-                    if 'SRC=' in line:
-                        ip_match = re.search(r'SRC=(\d+\.\d+\.\d+\.\d+)', line)
-                        if ip_match:
-                            ip = ip_match.group(1)
-                            subprocess.run(['iptables', '-A', 'INPUT', '-s', ip, '-j', 'DROP'], check=True)
-                            break
-        except subprocess.CalledProcessError as e:
-            print(f"Error executing action {action}: {e}")  # Log error, lanjutkan
+            subprocess.run(['iptables', '-F', 'INPUT'], check=True, timeout=2)
+            
+            subprocess.run(['iptables', '-A', 'INPUT', '-m', 'conntrack', 
+                          '--ctstate', 'ESTABLISHED,RELATED', '-j', 'ACCEPT'], 
+                          check=True, timeout=2)
+            
+            if action == 0:
+                subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80',
+                              '-m', 'limit', '--limit', '100/sec', '--limit-burst', '150',
+                              '-j', 'ACCEPT'], check=True, timeout=2)
+            elif action == 1:
+                subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80',
+                              '-m', 'limit', '--limit', '50/sec', '--limit-burst', '75',
+                              '-j', 'ACCEPT'], check=True, timeout=2)
+            elif action == 2:
+                subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80',
+                              '-m', 'limit', '--limit', '25/sec', '--limit-burst', '40',
+                              '-j', 'ACCEPT'], check=True, timeout=2)
+            elif action == 3:
+                subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80',
+                              '-m', 'limit', '--limit', '10/sec', '--limit-burst', '20',
+                              '-j', 'ACCEPT'], check=True, timeout=2)
+            elif action == 4:
+                top_ip = self._get_top_offender_ip()
+                if top_ip and top_ip not in self.blocked_ips:
+                    subprocess.run(['iptables', '-I', 'INPUT', '-s', top_ip, '-j', 'DROP'],
+                                 check=True, timeout=2)
+                    self.blocked_ips.add(top_ip)
+                
+                subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80',
+                              '-m', 'limit', '--limit', '10/sec', '--limit-burst', '15',
+                              '-j', 'ACCEPT'], check=True, timeout=2)
+            
+            subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80',
+                          '-m', 'connlimit', '--connlimit-above', '20', '-j', 'REJECT'],
+                          check=True, timeout=2)
+            
+            subprocess.run(['iptables', '-A', 'INPUT', '-p', 'tcp', '--dport', '80',
+                          '-j', 'DROP'], check=True, timeout=2)
+            
+            self.last_action = action
+            
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            print(f"Action {action} failed: {e}")
+
+    def _get_top_offender_ip(self):
+        try:
+            result = subprocess.run(['netstat', '-ntu'], capture_output=True, 
+                                  text=True, timeout=2)
+            ip_counts = {}
+            
+            for line in result.stdout.split('\n'):
+                match = re.search(r'(\d+\.\d+\.\d+\.\d+):80\s+.*ESTABLISHED', line)
+                if match:
+                    ip = match.group(1)
+                    ip_counts[ip] = ip_counts.get(ip, 0) + 1
+            
+            if ip_counts:
+                return max(ip_counts, key=ip_counts.get)
+            return None
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+            return None

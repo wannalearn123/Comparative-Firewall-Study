@@ -11,6 +11,8 @@ RUN dnf -y update && \
     
 RUN dnf clean all 
 
+RUN pip3 install requests
+
 USER root
 
 WORKDIR /app
