@@ -1,6 +1,7 @@
 import psutil
 import subprocess
 import time
+import os
 
 class StateObserver:
     """
@@ -15,18 +16,32 @@ class StateObserver:
         self.last_drop_count = 0
         self.last_time = time.time()
         self.prev_throughput = 0
+        self.process = psutil.Process(os.getpid())
+        self.last_cpu_time = self.process.cpu_times()
+
 
     def get_cpu_state(self):
-        cpu_percent = psutil.cpu_percent(interval=0.5)
-        if cpu_percent < 30:
+        try:
+            current_cpu_time = self.process.cpu_times()
+            cpu_delta = (current_cpu_time.user - self.last_cpu_time.user) + \
+                       (current_cpu_time.system - self.last_cpu_time.system)
+            
+            time_delta = time.time() - self.last_time
+            cpu_percent = (cpu_delta / time_delta) * 100 if time_delta > 0 else 0
+            
+            cpu_percent = min(cpu_percent, 100)
+            
+            if cpu_percent < 30:
+                return 0
+            elif cpu_percent < 50:
+                return 1
+            elif cpu_percent < 70:
+                return 2
+            elif cpu_percent < 85:
+                return 3
+            return 4
+        except:
             return 0
-        elif cpu_percent < 50:
-            return 1
-        elif cpu_percent < 70:
-            return 2
-        elif cpu_percent < 85:
-            return 3
-        return 4
 
     def get_packet_rate_and_drops(self):
         try:

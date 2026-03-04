@@ -12,7 +12,11 @@ services:
         ipv4_address: 172.20.0.10
     volumes:
       - ./Target:/app
-      # - nginx_logs:/var/log/nginx
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
     restart: unless-stopped
     command: tail -f /dev/null
   
