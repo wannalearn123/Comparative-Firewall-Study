@@ -22,14 +22,9 @@ class StateObserver:
 
     def get_cpu_state(self):
         try:
-            current_cpu_time = self.process.cpu_times()
-            cpu_delta = (current_cpu_time.user - self.last_cpu_time.user) + \
-                       (current_cpu_time.system - self.last_cpu_time.system)
-            
-            time_delta = time.time() - self.last_time
-            cpu_percent = (cpu_delta / time_delta) * 100 if time_delta > 0 else 0
-            
-            cpu_percent = min(cpu_percent, 100)
+            cpu_percent = psutil.cpu_percent(interval=0.5)
+    
+            print(f"[DEBUG] CPU: {cpu_percent:.1f}%")
             
             if cpu_percent < 30:
                 return 0
@@ -77,9 +72,9 @@ class StateObserver:
             self.last_drop_count = dropped_packets
             self.last_time = current_time
             
-            if packet_rate < 50:
+            if packet_rate < 10:
                 traffic_load = 0
-            elif packet_rate < 200:
+            elif packet_rate < 50:
                 traffic_load = 1
             else:
                 traffic_load = 2

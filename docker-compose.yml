@@ -15,11 +15,14 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '1.0'
-          memory: 512M
+          cpus: '0.1'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: '64M'
     restart: unless-stopped
     command: tail -f /dev/null
-  
+
   # Attacker Machine
   attacker:
     build: 
@@ -47,7 +50,7 @@ services:
       - ./User:/app
     restart: unless-stopped
     command: tail -f /dev/null
-
+    
 networks:
   firewall_net:
     driver: bridge
